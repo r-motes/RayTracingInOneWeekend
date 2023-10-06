@@ -6,14 +6,19 @@
 class ray {
 // アクセス指定子（publicはclassの外からアクセス可, privateはclass内部からのみ可, protectedはクラス内部若しくは派生クラスからのみ可.）
 public:
-	ray() {}
+	ray() 
+	{
+		// default
+	}
+
 	ray(const point3& origin, const vec3& direction)
 		: orig(origin), dir(direction) {}
 
 	point3 origin() const {
 		return orig;
 	}
-	vec3 direction() {
+
+	vec3 direction() const {
 		return dir;
 	}
 
