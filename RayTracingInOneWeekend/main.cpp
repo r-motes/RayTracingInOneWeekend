@@ -73,9 +73,10 @@
 
 
 
-
-// --------------------------------------------------------
+// practice
+// ---------------------------------------------------------------------
 #include <iostream>
+#include <vector>
 #include "ray.h"
 #include "vec3.h"
 #include "hittable.h"
@@ -121,6 +122,28 @@ public:
 };
 
 
+struct Mystruct {
+	// デフォルトコンストラクタ
+	Mystruct() : name("Unknown"), age(0) {}
+
+	// パラメータつきコンストラクタ
+	Mystruct(const std::string& n, int a) : name(n), age(a) {}
+
+
+	// メンバ変数
+	std::string const name;
+	int const age;
+
+	// メンバ関数
+	double onethird(double num) {
+		return static_cast<double>(num / 3.0);
+	}
+	void display() {
+		std::cout << "name：" << name << "\nage：" << age << std::endl;
+	}
+};
+
+
 
 
 int main(void) {
@@ -152,4 +175,38 @@ int main(void) {
 	Myclass myclass;
 	myclass.public_num = 2;//メンバ変数がpublicになっているため実行可
 	//myclass.private_num = 2;//メンバ変数がprivateになっているため実行不可
+
+
+	Mystruct mystruct1;
+	std::cout << mystruct1.name << std::endl;
+	std::cout << mystruct1.age << std::endl;
+	mystruct1.display();
+
+
+	Mystruct mystruct2("shunya", 22);
+	std::cout << mystruct2.name << std::endl;
+	std::cout << mystruct2.age << std::endl;
+	mystruct2.display();
+	std::cout << mystruct2.onethird(22) << std::endl;
+
+	vec3 v1 = { 1, 2, 3 };
+	vec3 v2 = { 2, 3, 4 };
+	v1 += v2;
+	v2 *= 2;
+	std::cout << "v1：" << v1 << std::endl;
+	std::cout << "v2：" << v2 << std::endl;
+	vec3 sum = v1 + v2;
+	std::cout << "sum：" << sum << std::endl;
+	std::cout << "v1.length()：" << v1.length() << std::endl;
+	std::cout << "v1.length_squared()：" << v1.length_squared() << std::endl;
+	std::cout << "dot(v1, v2)：" << dot(v1, v2) << std::endl;
+
+	// int型ベクトルのエイリアスの生成
+	using Intvector = std::vector<int>;//#include <vector>
+	Intvector numarray;
+	numarray = { 1, 2, 3, 4, 5 };
+	//std::cout << numarray << std::endl;//これは出力できない
+
+
+
 }
