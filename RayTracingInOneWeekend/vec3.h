@@ -57,6 +57,17 @@ public:
 		return e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
 	}
 
+	// ランダムなvec3を生成
+	inline static vec3 random() {
+		return vec3(random_double(), random_double(), random_double());
+	}
+
+	inline static vec3 random(double min, double max) {
+		return vec3(random_double(min, max),
+			random_double(min, max),
+			random_double(min, max));
+	}
+
 public:
 	// メンバ変数として3つの要素を持つ配列
 	double e[3];
@@ -125,6 +136,16 @@ inline vec3 cross(const vec3& u, const vec3& v) {
 // 正規化
 inline vec3 unit_vector(vec3 v) {
 	return v / v.length();
+}
+
+
+// 単位球内にランダムな
+vec3 random_in_unit_sphere() {
+	while (true) {
+		auto p = vec3::random(-1, 1);// xyzの各要素が-1から1の間でランダムな値を取るvec3を生成する
+		if (p.length_squared() >= 1) continue;// 大きさが1を超えるならもう一度サンプルする（棄却法）
+		return p;
+	}
 }
 
 #endif

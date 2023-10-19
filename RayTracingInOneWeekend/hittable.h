@@ -9,10 +9,16 @@ struct hit_record {
     point3 p;
     vec3 normal;
     double t;
+    bool front_face;
+
+    inline void set_face_normal(const ray& r, const vec3& outward_normal) {
+        front_face = dot(r.direction(), outward_normal) < 0;
+        normal = front_face ? outward_normal : -outward_normal;// (条件式) ? trueの場合 : falseの場合
+    }
 };
 
-class hittable {
-public://このクラスにはコンストラクタは存在していない
+class hittable {//レイが衝突しうる物体を表す抽象クラス
+public://このクラスにはコンストラクタは存在していない(継承で使う用)
     virtual ~hittable() {}//デストラクタ
     virtual bool hit(
         const ray& r, double t_min, double t_max, hit_record& rec
