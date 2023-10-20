@@ -139,13 +139,36 @@ inline vec3 unit_vector(vec3 v) {
 }
 
 
-// 単位球内にランダムな
+// 単位球内にランダム(cosの分布)
 vec3 random_in_unit_sphere() {
 	while (true) {
 		auto p = vec3::random(-1, 1);// xyzの各要素が-1から1の間でランダムな値を取るvec3を生成する
 		if (p.length_squared() >= 1) continue;// 大きさが1を超えるならもう一度サンプルする（棄却法）
 		return p;
 	}
+}
+
+
+// 完全に球面上にあたる法線分布
+vec3 random_unit_vector() {
+	auto a = random_double(0, 2 * pi);
+	auto z = random_double(-1, 1);
+	auto r = sqrt(1 - z * z);
+	return vec3(r * cos(a), r * sin(a), z);
+}
+
+
+vec3 random_in_hemisphere(const vec3& normal) {
+	vec3 in_unit_sphere = random_in_unit_sphere();
+	if (dot(in_unit_sphere, normal) > 0.0)
+		return in_unit_sphere; // in_unit_sphere は normal と同じ半球にある
+	else
+		return -in_unit_sphere;
+}
+
+// 反射ベクトルの計算
+vec3 reflect(const vec3& v, const vec3& n) {
+	return v - 2 * dot(v, n) * n;
 }
 
 #endif

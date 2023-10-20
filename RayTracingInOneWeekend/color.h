@@ -13,7 +13,7 @@ void write_color(std::ostream& out, color pixel_color, int samples_per_pixel) {
 
     // 色の合計をサンプルの数で割り、gamma = 2.0 のガンマ補正を行う
     auto scale = 1.0 / samples_per_pixel;
-    r = sqrt(scale * r);// (scale*r)で平均値を取った値をsqrt()で2乗するだけ。ガンマ補正は累乗。
+    r = sqrt(scale * r);// (scale*r)で平均値を取った値をsqrt()で1/2乗するだけ。出力輝度=(入力輝度)^(1/ガンマ値)
     g = sqrt(scale * g);
     b = sqrt(scale * b);
 

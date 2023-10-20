@@ -3,11 +3,13 @@
 
 #include "hittable.h"
 #include "vec3.h"
+#include "material.h"
 
 class sphere : public hittable {
 public:
     sphere() {}
-    sphere(point3 cen, double r) : center(cen), radius(r) {}// 中心座標と半径
+    sphere(point3 cen, double r, shared_ptr<material> m)
+        : center(cen), radius(r), mat_ptr(m) {}
 
     virtual bool hit(
         const ray& r, double tmin, double tmax, hit_record& rec
@@ -16,6 +18,7 @@ public:
 public:
     point3 center;// 中心座標
     double radius;// 半径
+    shared_ptr<material> mat_ptr;
 };
 
 bool sphere::hit(// sphere classのhit関数の詳細
@@ -35,6 +38,7 @@ bool sphere::hit(// sphere classのhit関数の詳細
             rec.p = r.at(rec.t);// 衝突点
             vec3 outward_normal = (rec.p - center) / radius;// 衝突点の法線(球だから)(外向き)(単位ベクトル)
             rec.set_face_normal(r, outward_normal);
+            rec.mat_ptr = mat_ptr;
             return true;
         }
         temp = (-half_b + root) / a;// もう一方の解(どちらかしかif文を通らない？もう一方はtemp<0となり無効？)
@@ -43,10 +47,28 @@ bool sphere::hit(// sphere classのhit関数の詳細
             rec.p = r.at(rec.t);
             vec3 outward_normal = (rec.p - center) / radius;
             rec.set_face_normal(r, outward_normal);
+            rec.mat_ptr = mat_ptr;
             return true;
         }
     }
     return false;
 }
+
+class lambertian : public material {
+public:
+    lambertian(const color& a) : albedo(a) {}
+
+    virtual bool scatter(
+        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
+    ) const {
+        vec3 scatter_direction = rec.normal + random_unit_vector();
+        scattered = ray(rec.p, scatter_direction);
+        attenuation = albedo;
+        return true;
+    }
+
+public:
+    color albedo;
+};
 
 #endif
