@@ -19,6 +19,7 @@ using std::make_shared;
 // —áFshared_ptr<sphere> sphere_ptr = make_shared<sphere>(point3(0, 0, 0), 1.0); ©center‚Æradius
 
 
+
 class hittable_list : public hittable {
 public:
     hittable_list() {}
@@ -34,6 +35,8 @@ public:
 public:
     std::vector<shared_ptr<hittable>> objects;
 };
+
+
 
 bool hittable_list::hit(
     const ray& r, double t_min, double t_max, hit_record& rec
