@@ -22,19 +22,20 @@ public:
 // 金属マテリアル
 class metal : public material {
 public:
-    metal(const color& a) : albedo(a) {}
+    metal(const color& a, double f) : albedo(a), fuzz(f < 1 ? f : 1) {}
 
     virtual bool scatter(// 引き継いだ純粋仮想関数scatterを定義
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
     ) const {
         vec3 reflected = reflect(unit_vector(r_in.direction()), rec.normal);// 入射方向と法線方向から反射方向を決定
-        scattered = ray(rec.p, reflected);// rayクラスに衝突点pと散乱レイの方向を設定
+        scattered = ray(rec.p, reflected + fuzz*random_in_unit_sphere());// rayクラスに衝突点pと散乱レイの方向を設定
         attenuation = albedo;
         return (dot(scattered.direction(), rec.normal) > 0);// 法線が裏向きに衝突した場合は0を返す。
     }
 
 public:
     color albedo;
+    double fuzz;// 散乱率的なもの(値が大きいほど散乱が大きい)
 };
 
 
