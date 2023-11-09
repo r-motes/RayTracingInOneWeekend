@@ -49,21 +49,22 @@ int main() {
     auto origin = point3(0, 0, 0);
     auto horizontal = vec3(viewport_width, 0, 0);
     auto vertical = vec3(0, viewport_height, 0);
-    auto lower_left_corner = origin - horizontal / 2 - vertical / 2 - vec3(0, 0, focal_length);
+    auto lower_left_corner = origin - horizontal / 2. - vertical / 2. - vec3(0, 0, focal_length);
 
 
     hittable_list world;
     world.add(make_shared<sphere>(
         point3(0, 0, -1), 0.5, make_shared<lambertian>(color(0.7, 0.3, 0.3))));
-    world.add(make_shared<sphere>(
-        point3(1, 0, -1), 0.5, make_shared<metal>(color(0.8, 0.6, 0.2), 0.3)));
+    world.add(make_shared<sphere>(// 誘電体球の半径を負に設定すると、ジオメトリは変わらず法線だけが反転する。これを使うと中空の球を作ることができる。
+        point3(1, 0, -1), 0.5, make_shared<dielectric>(1.5))); 
     world.add(make_shared<sphere>(
         point3(-1, 0, -1), 0.5, make_shared<metal>(color(0.8, 0.8, 0.8), 0.9)));
+
     world.add(make_shared<sphere>(// 下のまるで床のような球(半径100)
         point3(0, -100.5, -1), 100, make_shared<lambertian>(color(0.8, 0.8, 0.0))));
 
 
-    camera cam;// カメラインスタンス生成
+    camera cam(point3(-2, 2, 1), point3(0, 0, -1), vec3(0, 1, 0), 40, aspect_ratio);// カメラインスタンス生成
 
 
     for (int j = image_height - 1; j >= 0; --j) {
