@@ -59,12 +59,11 @@ public:
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
     ) const {
         vec3 scatter_direction = rec.normal + random_unit_vector();
-        scattered = ray(rec.p, scatter_direction);// rayクラスに衝突点pと散乱レイの方向を設定
+        scattered = ray(rec.p, scatter_direction, r_in.time());// rayクラスに衝突点pと散乱レイの方向を設定
         attenuation = albedo;
         return true;
     }
 
-public:
     color albedo;
 };
 
