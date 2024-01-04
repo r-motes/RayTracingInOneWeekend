@@ -1,6 +1,8 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
+#include "texture.h"
+
 
 // シュリックの近似
 double schlick(double cosine, double ref_idx) {
@@ -20,7 +22,7 @@ public:
     // 内容を定義しないため、派生クラスで必ずオーバーライドする必要がある。
     virtual bool scatter(
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
-    ) const =0; // const と =0 は別。
+    ) const = 0; // const と =0 は別。
                 // constはオブジェクトの状態を変更しないことを示す。(=メンバ関数を変更しない)
                 // =0 は純粋仮想関数であることを表し、派生クラス内で必ず実装することを要求する必須記法。
 };
@@ -35,7 +37,7 @@ public:
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
     ) const {
         vec3 reflected = reflect(unit_vector(r_in.direction()), rec.normal);// 入射方向と法線方向から反射方向を決定
-        scattered = ray(rec.p, reflected + fuzz*random_in_unit_sphere());// rayクラスに衝突点pと散乱レイの方向を設定
+        scattered = ray(rec.p, reflected + fuzz * random_in_unit_sphere());// rayクラスに衝突点pと散乱レイの方向を設定
         attenuation = albedo;
         return (dot(scattered.direction(), rec.normal) > 0);// 法線が裏向きに衝突した場合は0を返す。
     }
@@ -53,18 +55,19 @@ public:
 // 以下は前者。
 class lambertian : public material {// 抽象クラスのmaterialを継承
 public:
-    lambertian(const color& a) : albedo(a) {}
+    lambertian(shared_ptr<texture> a) : albedo(a) {}
 
     virtual bool scatter(// 引き継いだ純粋仮想関数scatterを定義
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
     ) const {
         vec3 scatter_direction = rec.normal + random_unit_vector();
         scattered = ray(rec.p, scatter_direction, r_in.time());// rayクラスに衝突点pと散乱レイの方向を設定
-        attenuation = albedo;
+        attenuation = albedo->value(rec.u, rec.v, rec.p);
         return true;
     }
 
-    color albedo;
+public:
+    shared_ptr<texture> albedo;
 };
 
 

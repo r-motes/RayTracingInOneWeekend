@@ -5,7 +5,7 @@
 #include "vec3.h"
 #include "material.h"
 
-class sphere: public hittable {// デストラクタは継承している
+class sphere : public hittable {// デストラクタは継承している
 public:
     sphere() {}
     sphere(point3 cen, double r, shared_ptr<material> m)// コンストラクタでメンバ関数を設定
@@ -13,6 +13,10 @@ public:
 
     virtual bool hit(// 純粋仮想関数のhitは以下で定義している
         const ray& r, double tmin, double tmax, hit_record& rec
+    ) const;
+
+    bool bounding_box(
+        double t0, double t1, aabb& output_box
     ) const;
 
 public:
@@ -55,5 +59,21 @@ bool sphere::hit(// sphere classのhit関数を定義
     }
     return false;
 }
+
+
+bool sphere::bounding_box(double t0, double t1, aabb& output_box) const {
+    output_box = aabb(center - vec3(radius, radius, radius),
+        center + vec3(radius, radius, radius));
+    return true;
+}
+
+
+void get_sphere_uv(const vec3& p, double& u, double& v) {
+    auto phi = atan2(p.z(), p.x());
+    auto theta = asin(p.y());
+    u = 1 - (phi + pi) / (2 * pi);
+    v = (theta + pi / 2) / pi;
+}
+
 
 #endif
