@@ -3,6 +3,9 @@
 
 #include "rtweekend.h"
 #include "perlin.h"
+#include "stb_image.h"
+
+#include <iostream>
 
 
 class texture {

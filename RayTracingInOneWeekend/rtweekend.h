@@ -40,6 +40,10 @@ inline double random_double(double min, double max) {// ˆø”‚ğ—^‚¦‚½ê‡‚Í‚»‚Ì‹æ
 //	return generator(distribution);
 //}
 
+inline int random_int(int min, int max) {
+	// {min, min+1, ..., max} ‚©‚ç®”‚ğƒ‰ƒ“ƒ_ƒ€‚É•Ô‚·
+	return min + rand() % (max - min + 1);
+}
 
 inline double clamp(double x, double min, double max) {
 	if (x < min) return min;

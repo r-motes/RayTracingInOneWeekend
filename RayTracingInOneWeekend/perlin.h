@@ -2,7 +2,6 @@
 #define PERLIN_H
 
 #include "rtweekend.h"
-#include "bvh.h"
 
 
 inline double trilinear_interp(

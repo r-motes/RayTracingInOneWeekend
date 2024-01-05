@@ -3,6 +3,7 @@
 
 #include "hittable.h"
 #include "hittable_list.h"
+#include "rtweekend.h"
 
 #include <algorithm>
 
@@ -48,7 +49,6 @@ bool bvh_node::hit(
 
     return hit_left || hit_right;
 }
-
 
 inline int random_int(int min, int max) {
     // {min, min+1, ..., max} ‚©‚ç®”‚ğƒ‰ƒ“ƒ_ƒ€‚É•Ô‚·

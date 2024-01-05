@@ -26,6 +26,14 @@ public:
 };
 
 
+// uv座標計算
+void get_sphere_uv(const vec3& p, double& u, double& v) {
+    auto phi = atan2(p.z(), p.x());
+    auto theta = asin(p.y());
+    u = 1 - (phi + pi) / (2 * pi);
+    v = (theta + pi / 2) / pi;
+}
+
 
 bool sphere::hit(// sphere classのhit関数を定義
     const ray& r, double t_min, double t_max, hit_record& rec
@@ -42,6 +50,7 @@ bool sphere::hit(// sphere classのhit関数を定義
         if (temp < t_max && temp > t_min) {
             rec.t = temp;// 解をhit_recordに記録
             rec.p = r.at(rec.t);// 衝突点
+            get_sphere_uv((rec.p - center) / radius, rec.u, rec.v);//sphereのuv座標を計算
             vec3 outward_normal = (rec.p - center) / radius;// 衝突点の法線(球だから)(外向き)(単位ベクトル)
             rec.set_face_normal(r, outward_normal);
             rec.mat_ptr = mat_ptr;// マテリアルのポインタをhit_record構造体(rec)に追加。
@@ -51,6 +60,7 @@ bool sphere::hit(// sphere classのhit関数を定義
         if (temp < t_max && temp > t_min) {
             rec.t = temp;
             rec.p = r.at(rec.t);
+            get_sphere_uv((rec.p - center) / radius, rec.u, rec.v);//sphereのuv座標を計算
             vec3 outward_normal = (rec.p - center) / radius;
             rec.set_face_normal(r, outward_normal);
             rec.mat_ptr = mat_ptr;// マテリアルのポインタをhit_record構造体(rec)に追加。
@@ -67,13 +77,6 @@ bool sphere::bounding_box(double t0, double t1, aabb& output_box) const {
     return true;
 }
 
-
-void get_sphere_uv(const vec3& p, double& u, double& v) {
-    auto phi = atan2(p.z(), p.x());
-    auto theta = asin(p.y());
-    u = 1 - (phi + pi) / (2 * pi);
-    v = (theta + pi / 2) / pi;
-}
 
 
 #endif

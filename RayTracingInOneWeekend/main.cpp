@@ -1,15 +1,18 @@
 #include "rtweekend.h"
-
 #include "hittable_list.h"
 #include "sphere.h"
 #include "camera.h"
 #include "material.h"
 #include "moving_sphere.h"
+#include "surface_texture.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include <iostream>
 #include <fstream>
 
-
+// ray飛ばしてレンダリング
 color ray_color(const ray& r, const hittable& world, int depth) {
 
     // 反射回数が一定よりも多くなったら、その時点で追跡をやめる
@@ -21,15 +24,19 @@ color ray_color(const ray& r, const hittable& world, int depth) {
         ray scattered;
         color attenuation;
         if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))// mat_ptrのメンバ関数が呼び出される。つまりマテリアルに応じたscatter関数が呼び出され、returnされるbool値は異なる。
-            return attenuation * ray_color(scattered, world, depth - 1);// 散乱する場合はこのif内の処理をする。基本的には減衰と再帰。
-        return color(0, 0, 0);// 散乱しない場合(0,0,0)を返して終了
+            return attenuation*ray_color(scattered, world, depth - 1);// 散乱する場合はこのif内の処理をする。基本的には減衰と再帰。
+            //return color(1.0, 0.0, 0.0);
+        return color(0.0, 0.0, 0.0);// 散乱しない場合(0,0,0)を返して終了
     }
 
-    // 衝突市内場合は背景としてy座標(高さ)に応じたcolorが返される
+    // 衝突しない場合は背景としてy座標(高さ)に応じたcolorが返される
     vec3 unit_direction = unit_vector(r.direction());
     auto t = 0.5 * (unit_direction.y() + 1.0);
-    return (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+    return (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);// グラデーション光源(環境マップ)
+    // return color(1.0, 1.0, 1.0);//白色光源(環境マップ)
 }
+
+
 
 // 大規模シーン定義
 hittable_list random_scene() {
@@ -119,6 +126,17 @@ hittable_list two_perlin_spheres() {
     return objects;
 }
 
+
+// 地球儀シーン
+hittable_list earth() {
+    auto earth_texture = make_shared<image_texture>("hosikawa.png");
+    auto earth_surface = make_shared<lambertian>(earth_texture);
+    auto globe = make_shared<sphere>(point3(0, 0, 0), 2, earth_surface);
+    return hittable_list(globe);
+}
+
+
+
 int main() {
     const auto aspect_ratio = 16.0 / 9.0;
     const int image_width = 400;
@@ -163,6 +181,13 @@ int main() {
     auto dist_to_focus = 10.0;
     auto aperture = 0.0;
 
+    //auto world = earth();
+    //point3 lookfrom(13, 2, 3);
+    //point3 lookat(0, 0, 0);
+    //vec3 vup(0, 1, 0);
+    //auto dist_to_focus = 10.0;
+    //auto aperture = 0.0;
+
 
     camera cam(
         lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus, 0.0, 1.0
@@ -179,6 +204,7 @@ int main() {
                 ray r = cam.get_ray(u, v);
                 pixel_color += ray_color(r, world, max_depth);
             }
+            //std::cerr << pixel_color[0] << "/n";
             write_color(ofs, pixel_color, samples_per_pixel);
         }
     }
