@@ -18,6 +18,11 @@ public:
     // virtualはポリフォーリズムをサポートするための重要な概念
     virtual ~material() {}// デストラクタ
 
+    // 発光しないマテリアルでemitter()を実装する必要がないように、基底で000を返すようにする
+    virtual color emitted(double u, double v, const point3& p) const {
+        return color(0, 0, 0);
+    }
+
     // 純粋派生関数。基底では内容を定義しない関数のことで、これを1つでも含むクラスを抽象クラスという
     // 内容を定義しないため、派生クラスで必ずオーバーライドする必要がある。
     virtual bool scatter(
@@ -104,6 +109,48 @@ public:
 
 public:
     double ref_idx;
+};
+
+
+
+// 発光マテリアル
+class diffuse_light : public material {
+public:
+    diffuse_light(shared_ptr<texture> a) : emit(a) {}
+
+    virtual bool scatter(
+        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered
+    ) const {
+        return false;
+    }
+
+    virtual color emitted(double u, double v, const point3& p) const {
+        return emit->value(u, v, p);
+    }
+
+public:
+    shared_ptr<texture> emit;
+};
+
+
+// 等方性テクスチャ
+class isotropic : public material {
+public:
+    isotropic(shared_ptr<texture> a) : albedo(a) {}
+
+    virtual bool scatter(
+        const ray& r_in,
+        const hit_record& rec,
+        color& attenuation,
+        ray& scattered
+    ) const {
+        scattered = ray(rec.p, random_in_unit_sphere(), r_in.time());
+        attenuation = albedo->value(rec.u, rec.v, rec.p);
+        return true;
+    }
+
+public:
+    shared_ptr<texture> albedo;
 };
 
 

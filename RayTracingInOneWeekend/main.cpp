@@ -5,49 +5,79 @@
 #include "material.h"
 #include "moving_sphere.h"
 #include "surface_texture.h"
+#include "aarect.h"
+#include "box.h"
+#include "constant_medium.h"
+#include "bvh.h"
+
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// openmp
+#include <omp.h>
+
 #include <iostream>
 #include <fstream>
 
+class bvh_node;
+
+
+
 // ray飛ばしてレンダリング
-color ray_color(const ray& r, const hittable& world, int depth) {
+color ray_color(const ray& r, const color& background, const hittable& world, int depth) {
+
+    hit_record rec;
 
     // 反射回数が一定よりも多くなったら、その時点で追跡をやめる
     if (depth <= 0)
         return color(0, 0, 0);
 
-    hit_record rec;
-    if (world.hit(r, 0.001, infinity, rec)) {
-        ray scattered;
-        color attenuation;
-        if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))// mat_ptrのメンバ関数が呼び出される。つまりマテリアルに応じたscatter関数が呼び出され、returnされるbool値は異なる。
-            return attenuation*ray_color(scattered, world, depth - 1);// 散乱する場合はこのif内の処理をする。基本的には減衰と再帰。
-            //return color(1.0, 0.0, 0.0);
-        return color(0.0, 0.0, 0.0);// 散乱しない場合(0,0,0)を返して終了
+    // レイがどのオブジェクトとも交わらないなら、背景色を返す
+    if (!world.hit(r, 0.001, infinity, rec)) {
+        return background;
     }
 
-    // 衝突しない場合は背景としてy座標(高さ)に応じたcolorが返される
-    vec3 unit_direction = unit_vector(r.direction());
-    auto t = 0.5 * (unit_direction.y() + 1.0);
-    return (1.0 - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);// グラデーション光源(環境マップ)
-    // return color(1.0, 1.0, 1.0);//白色光源(環境マップ)
+    ray scattered;
+    color attenuation;
+    color emitted = rec.mat_ptr->emitted(rec.u, rec.v, rec.p);
+
+    if (!rec.mat_ptr->scatter(r, rec, attenuation, scattered))// mat_ptrのメンバ関数が呼び出される。つまりマテリアルに応じたscatter関数が呼び出され、returnされるbool値は異なる。
+    //if (!(*rec.mat_ptr).scatter(r, rec, attenuation, scattered))
+        return emitted;
+
+    return emitted + attenuation * ray_color(scattered, background, world, depth - 1);
+
 }
 
 
+// オブジェクトとカメラ情報をセットで持つようにする
+struct SceneData
+{
+    hittable_list objects;
+    // camera param
+    point3 lookfrom;
+    point3 lookat;
+    vec3 vup;
+    double vfov;
+    double dist_to_focus;
+    double aperture;
+    double aspect_ratio;
+};
+
+
+// シーン一覧
 
 // 大規模シーン定義
-hittable_list random_scene() {
-    hittable_list world;
+SceneData random_scene() {
+    hittable_list objects;
 
     auto checker = make_shared<checker_texture>(
         make_shared<solid_color>(0.2, 0.3, 0.1),
         make_shared<solid_color>(0.9, 0.9, 0.9)
         );
 
-    world.add(
+    objects.add(
         make_shared<sphere>(point3(0, -1000, 0), 1000, make_shared<lambertian>(checker))
     );
 
@@ -63,7 +93,7 @@ hittable_list random_scene() {
                     auto albedo = color::random() * color::random();
                     sphere_material = make_shared<lambertian>(make_shared<solid_color>(albedo));
                     auto center2 = center + vec3(0, random_double(0, .5), 0);
-                    world.add(make_shared<moving_sphere>(
+                    objects.add(make_shared<moving_sphere>(
                         center, center2, 0.0, 1.0, 0.2, sphere_material));
                 }
                 else if (choose_mat < 0.95) {
@@ -71,29 +101,41 @@ hittable_list random_scene() {
                     auto albedo = color::random(0.5, 1);
                     auto fuzz = random_double(0, 0.5);
                     sphere_material = make_shared<metal>(albedo, fuzz);
-                    world.add(make_shared<sphere>(center, 0.2, sphere_material));
+                    objects.add(make_shared<sphere>(center, 0.2, sphere_material));
                 }
                 else {
                     // glass
                     sphere_material = make_shared<dielectric>(1.5);
-                    world.add(make_shared<sphere>(center, 0.2, sphere_material));
+                    objects.add(make_shared<sphere>(center, 0.2, sphere_material));
                 }
             }
         }
     }
 
     auto material1 = make_shared<dielectric>(1.5);
-    world.add(make_shared<sphere>(point3(0, 1, 0), 1.0, material1));
+    objects.add(make_shared<sphere>(point3(0, 1, 0), 1.0, material1));
     auto material2 = make_shared<lambertian>(make_shared<solid_color>(0.4, 0.2, 0.1));
-    world.add(make_shared<sphere>(point3(-4, 1, 0), 1.0, material2));
+    objects.add(make_shared<sphere>(point3(-4, 1, 0), 1.0, material2));
     auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);
-    world.add(make_shared<sphere>(point3(4, 1, 0), 1.0, material3));
+    objects.add(make_shared<sphere>(point3(4, 1, 0), 1.0, material3));
 
-    return world;
+
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(13, 2, 3);
+    ret.lookat = vec3(0, 0, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 20.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 16.0 / 9.0;
+
+    return ret;
 }
 
+
 // 球2つの接点拡大シーン
-hittable_list two_spheres() {
+SceneData two_spheres() {
     hittable_list objects;
 
     auto checker = make_shared<checker_texture>(
@@ -108,11 +150,21 @@ hittable_list two_spheres() {
         make_shared<sphere>(point3(0, 10, 0), 10, make_shared<lambertian>(checker))
     );
 
-    return objects;
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(13, 2, 3);
+    ret.lookat = vec3(0, 0, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 20.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 16.0 / 9.0;
+
+    return ret;
 }
 
 //パーリンノイズシーン
-hittable_list two_perlin_spheres() {
+SceneData two_perlin_spheres() {
     hittable_list objects;
 
     auto pertext = make_shared<noise_texture>();
@@ -123,95 +175,300 @@ hittable_list two_perlin_spheres() {
         point3(0, 2, 0), 2, make_shared<lambertian>(pertext))
     );
 
-    return objects;
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(13, 2, 3);
+    ret.lookat = vec3(0, 0, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 20.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 16.0 / 9.0;
+
+    return ret;
 }
 
 
 // 地球儀シーン
 hittable_list earth() {
-    auto earth_texture = make_shared<image_texture>("hosikawa.png");
+    auto earth_texture = make_shared<image_texture>("../resources/earthmap.jpg");
     auto earth_surface = make_shared<lambertian>(earth_texture);
     auto globe = make_shared<sphere>(point3(0, 0, 0), 2, earth_surface);
     return hittable_list(globe);
 }
 
 
+// 長方形を光源とする
+SceneData simple_light() {
+    hittable_list objects;
+
+    auto pertext = make_shared<noise_texture>(4);
+    objects.add(make_shared<sphere>(
+        point3(0, -1000, 0), 1000, make_shared<lambertian>(pertext))
+    );
+    objects.add(make_shared<sphere>(
+        point3(0, 2, 0), 2, make_shared<lambertian>(pertext))
+    );
+
+    auto difflight = make_shared<diffuse_light>(make_shared<solid_color>(4, 4, 4));
+    objects.add(make_shared<sphere>(point3(0, 7, 0), 2, difflight));
+    objects.add(make_shared<xy_rect>(3, 5, 1, 3, -2, difflight));
+
+
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(13, 2, 3);
+    ret.lookat = vec3(0, 0, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 20.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 16.0 / 9.0;
+
+    return ret;
+}
+
+
+// 空のコーネルボックスの作成
+SceneData cornell_box() {
+    hittable_list objects;
+
+    auto red = make_shared<lambertian>(make_shared<solid_color>(.65, .05, .05));
+    auto white = make_shared<lambertian>(make_shared<solid_color>(.73, .73, .73));
+    auto green = make_shared<lambertian>(make_shared<solid_color>(.12, .45, .15));
+    auto light = make_shared<diffuse_light>(make_shared<solid_color>(15, 15, 15));
+
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 555, green));
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 0, red));
+    objects.add(make_shared<xz_rect>(183, 373, 197, 362, 554, light));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 0, white));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 555, white));
+    objects.add(make_shared<xy_rect>(0, 555, 0, 555, 555, white));
+
+    shared_ptr<hittable> box1 =
+        make_shared<box>(point3(0, 0, 0), point3(165, 330, 165), white);
+    box1 = make_shared<rotate_y>(box1, 15);
+    box1 = make_shared<translate>(box1, vec3(265, 0, 295));
+    objects.add(box1);
+
+    shared_ptr<hittable> box2 =
+        make_shared<box>(point3(0, 0, 0), point3(165, 165, 165), white);
+    box2 = make_shared<rotate_y>(box2, -18);
+    box2 = make_shared<translate>(box2, vec3(130, 0, 65));
+    objects.add(box2);
+
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(278, 278, -800);
+    ret.lookat = vec3(278, 278, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 40.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 1.0;
+
+    return ret;
+}
+
+
+//  煙がかった直方体のレンダリング
+SceneData cornell_smoke() {
+    hittable_list objects;
+
+    auto red = make_shared<lambertian>(make_shared<solid_color>(.65, .05, .05));
+    auto white = make_shared<lambertian>(make_shared<solid_color>(.73, .73, .73));
+    auto green = make_shared<lambertian>(make_shared<solid_color>(.12, .45, .15));
+    auto light = make_shared<diffuse_light>(make_shared<solid_color>(7, 7, 7));
+
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 555, green));
+    objects.add(make_shared<yz_rect>(0, 555, 0, 555, 0, red));
+    objects.add(make_shared<xz_rect>(113, 443, 127, 432, 554, light));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 555, white));
+    objects.add(make_shared<xz_rect>(0, 555, 0, 555, 0, white));
+    objects.add(make_shared<xy_rect>(0, 555, 0, 555, 555, white));
+
+    shared_ptr<hittable> box1 =
+        make_shared<box>(point3(0, 0, 0), point3(165, 330, 165), white);
+    box1 = make_shared<rotate_y>(box1, 15);
+    box1 = make_shared<translate>(box1, vec3(265, 0, 295));
+
+    shared_ptr<hittable> box2 =
+        make_shared<box>(point3(0, 0, 0), point3(165, 165, 165), white);
+    box2 = make_shared<rotate_y>(box2, -18);
+    box2 = make_shared<translate>(box2, vec3(130, 0, 65));
+
+    objects.add(
+        make_shared<constant_medium>(box1, 0.01, make_shared<solid_color>(0, 0, 0))
+    );
+    objects.add(
+        make_shared<constant_medium>(box2, 0.01, make_shared<solid_color>(1, 1, 1))
+    );
+
+
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(278, 278, -800);
+    ret.lookat = vec3(278, 278, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 40.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 1.0;
+
+    return ret;
+}
+
+
+// 最終シーン
+SceneData final_scene() {
+    hittable_list boxes1;
+    auto ground =
+        make_shared<lambertian>(make_shared<solid_color>(0.48, 0.83, 0.53));
+
+    const int boxes_per_side = 20;
+    for (int i = 0; i < boxes_per_side; i++) {
+        for (int j = 0; j < boxes_per_side; j++) {
+            auto w = 100.0;
+            auto x0 = -1000.0 + i * w;
+            auto z0 = -1000.0 + j * w;
+            auto y0 = 0.0;
+            auto x1 = x0 + w;
+            auto y1 = random_double(1, 101);
+            auto z1 = z0 + w;
+
+            boxes1.add(make_shared<box>(point3(x0, y0, z0), point3(x1, y1, z1), ground));
+        }
+    }
+
+    hittable_list objects;
+
+    objects.add(make_shared<bvh_node>(boxes1, 0, 1));
+
+    auto light = make_shared<diffuse_light>(make_shared<solid_color>(7, 7, 7));
+    objects.add(make_shared<xz_rect>(123, 423, 147, 412, 554, light));
+
+    auto center1 = point3(400, 400, 200);
+    auto center2 = center1 + vec3(30, 0, 0);
+    auto moving_sphere_material =
+        make_shared<lambertian>(make_shared<solid_color>(0.7, 0.3, 0.1));
+    objects.add(make_shared<moving_sphere>(
+        center1, center2, 0, 1, 50, moving_sphere_material));
+
+    objects.add(make_shared<sphere>(
+        point3(260, 150, 45), 50, make_shared<dielectric>(1.5)));
+    objects.add(make_shared<sphere>(
+        point3(0, 150, 145), 50, make_shared<metal>(color(0.8, 0.8, 0.9), 10.0)));
+
+    auto boundary = make_shared<sphere>(
+        point3(360, 150, 145), 70, make_shared<dielectric>(1.5));
+    objects.add(boundary);
+    objects.add(make_shared<constant_medium>(
+        boundary, 0.2, make_shared<solid_color>(0.2, 0.4, 0.9)));
+    boundary = make_shared<sphere>(
+        point3(0, 0, 0), 5000, make_shared<dielectric>(1.5));
+    objects.add(make_shared<constant_medium>(
+        boundary, .0001, make_shared<solid_color>(1, 1, 1)));
+
+    auto emat = make_shared<lambertian>(
+        make_shared<image_texture>("../resources/earthmap.jpg"));
+    objects.add(make_shared<sphere>(point3(400, 200, 400), 100, emat));
+    auto pertext = make_shared<noise_texture>(0.1);
+    objects.add(make_shared<sphere>(
+        point3(220, 280, 300), 80, make_shared<lambertian>(pertext)));
+
+    hittable_list boxes2;
+    auto white = make_shared<lambertian>(make_shared<solid_color>(.73, .73, .73));
+    int ns = 1000;
+    for (int j = 0; j < ns; j++) {
+        boxes2.add(make_shared<sphere>(point3::random(0, 165), 10, white));
+    }
+
+    objects.add(make_shared<translate>(
+        make_shared<rotate_y>(
+            make_shared<bvh_node>(boxes2, 0.0, 1.0), 15),
+        vec3(-100, 270, 395)
+        )
+    );
+
+    SceneData ret;
+    ret.objects = objects;
+    ret.lookfrom = vec3(278, 278, -800);
+    ret.lookat = vec3(278, 278, 0);
+    ret.vup = vec3(0, 1, 0);
+    ret.vfov = 40.0;
+    ret.dist_to_focus = 10.0;
+    ret.aperture = 0.0;
+    ret.aspect_ratio = 1.0;
+
+    return ret;
+}
+
+
 
 int main() {
-    const auto aspect_ratio = 16.0 / 9.0;
-    const int image_width = 400;
-    const int image_height = static_cast<int>(image_width / aspect_ratio);
-    const int samples_per_pixel = 100;
+    
+    SceneData scene = final_scene();
+    camera cam(
+        scene.lookfrom, scene.lookat, scene.vup, scene.vfov, scene.aspect_ratio, scene.aperture, scene.dist_to_focus, 0.0, 1.0
+    );// カメラインスタンス生成
+
+    const color background(0, 0, 0);
+    constexpr int image_width = 500;
+    constexpr int image_height = static_cast<int>(image_width / 1.0);// scene.aspect_ratio);
+    const int samples_per_pixel = 20;
     const int max_depth = 50;
+
+    // 画像バッファ(並列化用)
+    std::vector<std::vector<color>> image(image_height, std::vector<color>(image_width));
 
     std::ofstream ofs("image.ppm");
 
     ofs << "P3\n" << image_width << " " << image_height << "\n255\n";
-
-    auto viewport_height = 2.0;
-    auto viewport_width = aspect_ratio * viewport_height;
-    auto focal_length = 1.0;
-
-    auto origin = point3(0, 0, 0);
-    auto horizontal = vec3(viewport_width, 0, 0);
-    auto vertical = vec3(0, viewport_height, 0);
-    auto lower_left_corner = origin - horizontal / 2. - vertical / 2. - vec3(0, 0, focal_length);
-
-
-    // シーンとカメラ
-
-    //auto world = random_scene();
-    //point3 lookfrom(13, 2, 3);
-    //point3 lookat(0, 0, 0);
-    //vec3 vup(0, 1, 0);
-    //auto dist_to_focus = 10.0;
-    //auto aperture = 0.0;
-
-    //auto world = two_spheres();
-    //point3 lookfrom(13, 2, 3);
-    //point3 lookat(0, 0, 0);
-    //vec3 vup(0, 1, 0);
-    //auto dist_to_focus = 10.0;
-    //auto aperture = 0.0;
-
-    auto world = two_perlin_spheres();
-    point3 lookfrom(13, 2, 3);
-    point3 lookat(0, 0, 0);
-    vec3 vup(0, 1, 0);
-    auto dist_to_focus = 10.0;
-    auto aperture = 0.0;
-
-    //auto world = earth();
-    //point3 lookfrom(13, 2, 3);
-    //point3 lookat(0, 0, 0);
-    //vec3 vup(0, 1, 0);
-    //auto dist_to_focus = 10.0;
-    //auto aperture = 0.0;
-
-
-    camera cam(
-        lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus, 0.0, 1.0
-    );// カメラインスタンス生成
-
-
+    
+    const int threadsNum = omp_get_max_threads(); // 使える最大のスレッド数を得る
+    std::cerr << " threads num : " << threadsNum << "\n";
+    omp_set_num_threads(threadsNum);
+#pragma omp parallel for
     for (int j = image_height - 1; j >= 0; --j) {
-        std::cerr << "\rScanlines remaining: " << j << ' ' << std::flush;
+       
+        // 並列化すると表示がおかしくなる
+        if (omp_get_thread_num() == threadsNum - 1)
+        {
+            std::cerr << "\rScanlines remaining: " << j << ' ' << std::flush;
+        }
+
         for (int i = 0; i < image_width; ++i) {
             color pixel_color(0, 0, 0);
             for (int s = 0; s < samples_per_pixel; ++s) {// サンプル数だけループする
                 auto u = (i + random_double()) / (image_width - 1);
                 auto v = (j + random_double()) / (image_height - 1);
                 ray r = cam.get_ray(u, v);
-                pixel_color += ray_color(r, world, max_depth);
+                pixel_color += ray_color(r, background, scene.objects, max_depth);
+                
             }
-            //std::cerr << pixel_color[0] << "/n";
-            write_color(ofs, pixel_color, samples_per_pixel);
+            //並列化すると壊れる
+            //write_color(ofs, image[j][i], samples_per_pixel);
+
+            image[j][i] = postProcess(pixel_color, samples_per_pixel);
         }
     }
+
+    std::cerr << "\n\n";
+    for (int j = image_height - 1; j >= 0; --j) {
+        std::cerr << "\routput scanlines remaining: " << j << ' ' << std::flush;
+        for (int i = 0; i < image_width; ++i) {
+                outputColor(ofs, image[j][i]);
+            }
+        }
 
     ofs.close();
     std::cerr << "\nDone.\n";
 
     // i_view32.exe image.ppm　を実行したい
-    system("\"C:\\Program Files (x86)\\IrfanView\\i_view32.exe\" C:\\Users\\motes\\source\\repos\\RayTracingInOneWeekend\\RayTracingInOneWeekend\\image.ppm");
+#ifndef NDEBUG // DEBUG
+    system("\"C:\\Program Files (x86)\\IrfanView\\i_view32.exe\" C:\\Users\\motes\\source\\repos\\RayTracingInOneWeekend\\x64\\Debug\\image.ppm");
+#else // RELEASE
+    system("\"C:\\Program Files (x86)\\IrfanView\\i_view32.exe\" C:\\Users\\motes\\source\\repos\\RayTracingInOneWeekend\\x64\\Release\\image.ppm");
+#endif
+
 }

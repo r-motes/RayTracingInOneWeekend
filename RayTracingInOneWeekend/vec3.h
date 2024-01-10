@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-#include "rtweekend.h"
+//#include "rtweekend.h"
 
 using std::sqrt;
 

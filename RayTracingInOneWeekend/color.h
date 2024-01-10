@@ -24,4 +24,26 @@ void write_color(std::ostream& out, color pixel_color, int samples_per_pixel) {
         << static_cast<int>(256 * clamp(b, 0.0, 0.999)) << '\n';
 }
 
+color postProcess(color pixel_color, int samples_per_pixel)
+{
+    auto r = pixel_color.x();
+    auto g = pixel_color.y();
+    auto b = pixel_color.z();
+    // 色の合計をサンプルの数で割り、gamma = 2.0 のガンマ補正を行う
+    auto scale = 1.0 / samples_per_pixel;
+    r = sqrt(scale * r);// (scale*r)で平均値を取った値をsqrt()で1/2乗するだけ。出力輝度=(入力輝度)^(1/ガンマ値)
+    g = sqrt(scale * g);
+    b = sqrt(scale * b);
+
+    return color(r, g, b);
+}
+
+void outputColor(std::ostream& out, color processed_color)
+{
+    // 各成分を [0,255] に変換して出力する
+    out << static_cast<int>(256 * clamp(processed_color.x(), 0.0, 0.999)) << ' '
+        << static_cast<int>(256 * clamp(processed_color.y(), 0.0, 0.999)) << ' '
+        << static_cast<int>(256 * clamp(processed_color.z(), 0.0, 0.999)) << '\n';
+}
+
 #endif

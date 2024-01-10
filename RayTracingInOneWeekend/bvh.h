@@ -3,9 +3,42 @@
 
 #include "hittable.h"
 #include "hittable_list.h"
-#include "rtweekend.h"
 
 #include <algorithm>
+
+
+// プロトタイプ宣言(rtweekend.hをここでincludeすることはできない)
+inline int random_int(int min, int max);
+
+inline bool box_compare(
+    const shared_ptr<hittable> a, const shared_ptr<hittable> b, int axis
+) {
+    aabb box_a;
+    aabb box_b;
+
+    if (!a->bounding_box(0, 0, box_a) || !b->bounding_box(0, 0, box_b))
+        std::cerr << "No bounding box in bvh_node constructor.\n";
+
+    return box_a.min().e[axis] < box_b.min().e[axis];
+}
+
+bool box_x_compare(
+    const shared_ptr<hittable> a, const shared_ptr<hittable> b
+) {
+    return box_compare(a, b, 0);
+}
+
+bool box_y_compare(
+    const shared_ptr<hittable> a, const shared_ptr<hittable> b
+) {
+    return box_compare(a, b, 1);
+}
+
+bool box_z_compare(
+    const shared_ptr<hittable> a, const shared_ptr<hittable> b
+) {
+    return box_compare(a, b, 2);
+}
 
 class bvh_node : public hittable {
 public:
@@ -48,11 +81,6 @@ bool bvh_node::hit(
     bool hit_right = right->hit(r, t_min, hit_left ? rec.t : t_max, rec);
 
     return hit_left || hit_right;
-}
-
-inline int random_int(int min, int max) {
-    // {min, min+1, ..., max} から整数をランダムに返す
-    return min + rand() % (max - min + 1);
 }
 
 bvh_node::bvh_node(
@@ -98,36 +126,6 @@ bvh_node::bvh_node(
 }
 
 
-inline bool box_compare(
-    const shared_ptr<hittable> a, const shared_ptr<hittable> b, int axis
-) {
-    aabb box_a;
-    aabb box_b;
-
-    if (!a->bounding_box(0, 0, box_a) || !b->bounding_box(0, 0, box_b))
-        std::cerr << "No bounding box in bvh_node constructor.\n";
-
-    return box_a.min().e[axis] < box_b.min().e[axis];
-}
-
-
-bool box_x_compare(
-    const shared_ptr<hittable> a, const shared_ptr<hittable> b
-) {
-    return box_compare(a, b, 0);
-}
-
-bool box_y_compare(
-    const shared_ptr<hittable> a, const shared_ptr<hittable> b
-) {
-    return box_compare(a, b, 1);
-}
-
-bool box_z_compare(
-    const shared_ptr<hittable> a, const shared_ptr<hittable> b
-) {
-    return box_compare(a, b, 2);
-}
 
 
 #endif

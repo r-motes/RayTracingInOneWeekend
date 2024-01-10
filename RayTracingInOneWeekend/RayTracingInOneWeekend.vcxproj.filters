@@ -65,9 +65,21 @@
     <ClInclude Include="surface_texture.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="aarect.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="box.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="constant_medium.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="earthmap.jpg">
+    <Image Include="..\x64\resources\earthmap.jpg">
+      <Filter>リソース ファイル</Filter>
+    </Image>
+    <Image Include="..\x64\resources\hosikawa.png">
       <Filter>リソース ファイル</Filter>
     </Image>
   </ItemGroup>
