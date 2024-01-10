@@ -74,6 +74,9 @@
     <ClInclude Include="constant_medium.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="stb_image_write.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\x64\resources\earthmap.jpg">

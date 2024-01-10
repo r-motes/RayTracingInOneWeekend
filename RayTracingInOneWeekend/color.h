@@ -24,6 +24,9 @@ void write_color(std::ostream& out, color pixel_color, int samples_per_pixel) {
         << static_cast<int>(256 * clamp(b, 0.0, 0.999)) << '\n';
 }
 
+
+
+// •À—ñ‰»‚Ì‚½‚ß‚Éwrite_color‚ð•ªŠ„
 color postProcess(color pixel_color, int samples_per_pixel)
 {
     auto r = pixel_color.x();

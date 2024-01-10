@@ -10,18 +10,17 @@
 #include "constant_medium.h"
 #include "bvh.h"
 
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 // openmp
 #include <omp.h>
 
 #include <iostream>
 #include <fstream>
-
-class bvh_node;
-
 
 
 // ray飛ばしてレンダリング
@@ -62,7 +61,6 @@ struct SceneData
     double vfov;
     double dist_to_focus;
     double aperture;
-    double aspect_ratio;
 };
 
 
@@ -128,7 +126,6 @@ SceneData random_scene() {
     ret.vfov = 20.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 16.0 / 9.0;
 
     return ret;
 }
@@ -158,7 +155,6 @@ SceneData two_spheres() {
     ret.vfov = 20.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 16.0 / 9.0;
 
     return ret;
 }
@@ -183,7 +179,6 @@ SceneData two_perlin_spheres() {
     ret.vfov = 20.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 16.0 / 9.0;
 
     return ret;
 }
@@ -223,7 +218,6 @@ SceneData simple_light() {
     ret.vfov = 20.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 16.0 / 9.0;
 
     return ret;
 }
@@ -265,7 +259,6 @@ SceneData cornell_box() {
     ret.vfov = 40.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 1.0;
 
     return ret;
 }
@@ -313,7 +306,6 @@ SceneData cornell_smoke() {
     ret.vfov = 40.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 1.0;
 
     return ret;
 }
@@ -398,7 +390,6 @@ SceneData final_scene() {
     ret.vfov = 40.0;
     ret.dist_to_focus = 10.0;
     ret.aperture = 0.0;
-    ret.aspect_ratio = 1.0;
 
     return ret;
 }
@@ -408,22 +399,27 @@ SceneData final_scene() {
 int main() {
     
     SceneData scene = final_scene();
+    
+    constexpr int image_width = 500;
+    constexpr int image_height = 500;
+    const int samples_per_pixel = 128;
+
+    const double aspect_ratio = image_width / image_height;
+    const int max_depth = 50;
+    const color background(0, 0, 0);
     camera cam(
-        scene.lookfrom, scene.lookat, scene.vup, scene.vfov, scene.aspect_ratio, scene.aperture, scene.dist_to_focus, 0.0, 1.0
+        scene.lookfrom, scene.lookat, scene.vup, scene.vfov, aspect_ratio, scene.aperture, scene.dist_to_focus, 0.0, 1.0
     );// カメラインスタンス生成
 
-    const color background(0, 0, 0);
-    constexpr int image_width = 500;
-    constexpr int image_height = static_cast<int>(image_width / 1.0);// scene.aspect_ratio);
-    const int samples_per_pixel = 20;
-    const int max_depth = 50;
 
-    // 画像バッファ(並列化用)
-    std::vector<std::vector<color>> image(image_height, std::vector<color>(image_width));
+    //ppm用（並列化用バッファを用意）
+    //std::vector<std::vector<color>> image(image_height, std::vector<color>(image_width));
+    //std::ofstream ofs("image.ppm");
+    //ofs << "P3\n" << image_width << " " << image_height << "\n255\n";
 
-    std::ofstream ofs("image.ppm");
+    //png用（並列化用バッファを用意）
+    std::vector<unsigned char> image(image_width * image_height * 3, 255);
 
-    ofs << "P3\n" << image_width << " " << image_height << "\n255\n";
     
     const int threadsNum = omp_get_max_threads(); // 使える最大のスレッド数を得る
     std::cerr << " threads num : " << threadsNum << "\n";
@@ -431,7 +427,7 @@ int main() {
 #pragma omp parallel for
     for (int j = image_height - 1; j >= 0; --j) {
        
-        // 並列化すると表示がおかしくなる
+         // 並列化すると表示がおかしくなる
         if (omp_get_thread_num() == threadsNum - 1)
         {
             std::cerr << "\rScanlines remaining: " << j << ' ' << std::flush;
@@ -446,29 +442,39 @@ int main() {
                 pixel_color += ray_color(r, background, scene.objects, max_depth);
                 
             }
-            //並列化すると壊れる
-            //write_color(ofs, image[j][i], samples_per_pixel);
 
-            image[j][i] = postProcess(pixel_color, samples_per_pixel);
+            // ppmで出力
+            //image[j][i] = postProcess(pixel_color, samples_per_pixel);
+
+            // pngで出力
+            vec3 color = postProcess(pixel_color, samples_per_pixel);
+            image[image_width * image_height * 3 - 1 - ((image_width * j + i) * 3 + 2)] = static_cast<int>(256 * clamp(color[0], 0.0, 0.999));
+            image[image_width * image_height * 3 - 1 - ((image_width * j + i) * 3 + 1)] = static_cast<int>(256 * clamp(color[1], 0.0, 0.999));
+            image[image_width * image_height * 3 - 1 - ((image_width * j + i) * 3 + 0)] = static_cast<int>(256 * clamp(color[2], 0.0, 0.999));
         }
     }
 
-    std::cerr << "\n\n";
-    for (int j = image_height - 1; j >= 0; --j) {
-        std::cerr << "\routput scanlines remaining: " << j << ' ' << std::flush;
-        for (int i = 0; i < image_width; ++i) {
-                outputColor(ofs, image[j][i]);
-            }
-        }
+    // ppmで出力
+    //std::cerr << "\n\n";
+    //for (int j = image_height - 1; j >= 0; --j) {
+    //    std::cerr << "\routput scanlines remaining: " << j << ' ' << std::flush;
+    //    for (int i = 0; i < image_width; ++i) {
+    //            outputColor(ofs, image[j][i]);
+    //    }
+    //}
+    //ofs.close();
 
-    ofs.close();
+
+    // pngで出力
+    stbi_write_png("output.png", image_width, image_height, 3, image.data(), image_width * 3);
+
     std::cerr << "\nDone.\n";
 
-    // i_view32.exe image.ppm　を実行したい
+
 #ifndef NDEBUG // DEBUG
-    system("\"C:\\Program Files (x86)\\IrfanView\\i_view32.exe\" C:\\Users\\motes\\source\\repos\\RayTracingInOneWeekend\\x64\\Debug\\image.ppm");
+    system("output.png");
 #else // RELEASE
-    system("\"C:\\Program Files (x86)\\IrfanView\\i_view32.exe\" C:\\Users\\motes\\source\\repos\\RayTracingInOneWeekend\\x64\\Release\\image.ppm");
+    system("output.png");
 #endif
 
 }

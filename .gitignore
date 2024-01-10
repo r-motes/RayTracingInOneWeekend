@@ -33,5 +33,7 @@
 
 # VS
 .vs
+
+# Directory
 Debug
 x64
